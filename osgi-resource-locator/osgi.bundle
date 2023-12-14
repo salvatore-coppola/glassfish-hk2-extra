@@ -16,6 +16,6 @@
 
 Bundle-Activator: org.glassfish.hk2.osgiresourcelocator.Activator
 Bundle-ActivationPolicy: lazy
-Bundle-Version: ${project.osgi.version}
-Export-Package: org.glassfish.hk2.osgiresourcelocator;uses:="org.osgi.framework";version="${project.version}"
-Import-Package: org.glassfish.hk2.osgiresourcelocator; version="${project.version}", *
+Bundle-Version: 1.0.3
+Export-Package: org.glassfish.hk2.osgiresourcelocator;uses:="org.osgi.framework";version="1.0.3"
+Import-Package: org.glassfish.hk2.osgiresourcelocator; version="1.0.3", *

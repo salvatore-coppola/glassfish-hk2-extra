@@ -16,8 +16,6 @@
 
 package org.glassfish.hk2.osgiresourcelocator;
 
-import org.osgi.framework.*;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
@@ -25,9 +23,23 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Scanner;
+import java.util.StringTokenizer;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+
+import org.osgi.framework.Bundle;
+import org.osgi.framework.BundleContext;
+import org.osgi.framework.BundleEvent;
+import org.osgi.framework.BundleListener;
+import org.osgi.framework.BundleReference;
 
 /**
  * @author Sanjeeb.Sahoo@Sun.COM
@@ -39,10 +51,11 @@ public final class ServiceLoaderImpl extends org.glassfish.hk2.osgiresourcelocat
     private BundleContext bundleContext;
     private ProvidersList providersList = new ProvidersList();
 
-//    /**
-//     * Map of service type to bundles providing the service
-//     */
-//    private Map<String, List<ServiceProviders>> serviceToProvidersMap = new HashMap<String, List<ServiceProviders>>();
+    // /**
+    // * Map of service type to bundles providing the service
+    // */
+    // private Map<String, List<ServiceProviders>> serviceToProvidersMap = new HashMap<String,
+    // List<ServiceProviders>>();
 
     public ServiceLoaderImpl() {
         ClassLoader cl = getClass().getClassLoader();
@@ -50,14 +63,15 @@ public final class ServiceLoaderImpl extends org.glassfish.hk2.osgiresourcelocat
             bundleContext = getBundleContextSecured(BundleReference.class.cast(cl).getBundle());
         }
         if (bundleContext == null) {
-            throw new RuntimeException("There is no bundle context available yet. " +
-                    "Instatiate this class in STARTING or ACTIVE state only");
+            throw new RuntimeException("There is no bundle context available yet. "
+                    + "Instatiate this class in STARTING or ACTIVE state only");
         }
     }
 
     private BundleContext getBundleContextSecured(final Bundle bundle) {
         if (System.getSecurityManager() != null) {
             return AccessController.doPrivileged(new PrivilegedAction<BundleContext>() {
+
                 public BundleContext run() {
                     return bundle.getBundleContext();
                 }
@@ -83,7 +97,8 @@ public final class ServiceLoaderImpl extends org.glassfish.hk2.osgiresourcelocat
         }
     }
 
-    /*package*/ <T> Iterable<? extends T> lookupProviderInstances1(Class<T> serviceClass, ProviderFactory<T> factory) {
+    /* package */ <T> Iterable<? extends T> lookupProviderInstances1(Class<T> serviceClass,
+            ProviderFactory<T> factory) {
         if (factory == null) {
             factory = new DefaultFactory<T>();
         }
@@ -103,7 +118,7 @@ public final class ServiceLoaderImpl extends org.glassfish.hk2.osgiresourcelocat
         return providers;
     }
 
-    /*package*/ <T> Iterable<Class> lookupProviderClasses1(Class<T> serviceClass) {
+    /* package */ <T> Iterable<Class> lookupProviderClasses1(Class<T> serviceClass) {
         List<Class> providerClasses = new ArrayList<Class>();
         rwLock.readLock().lock();
         try {
@@ -135,11 +150,11 @@ public final class ServiceLoaderImpl extends org.glassfish.hk2.osgiresourcelocat
         }
     }
 
-    private Class loadClassSecured(final Bundle bundle, final String name)
-            throws ClassNotFoundException {
-        if (System.getSecurityManager()!=null) {
+    private Class loadClassSecured(final Bundle bundle, final String name) throws ClassNotFoundException {
+        if (System.getSecurityManager() != null) {
             try {
-                return AccessController.doPrivileged(new PrivilegedExceptionAction<Class>(){
+                return AccessController.doPrivileged(new PrivilegedExceptionAction<Class>() {
+
                     public Class run() throws ClassNotFoundException {
                         return bundle.loadClass(name);
                     }
@@ -170,16 +185,18 @@ public final class ServiceLoaderImpl extends org.glassfish.hk2.osgiresourcelocat
             // Now, p2.C2.class.getClassLoader().loadClass("p.I") will fail.
             // In such a case, we shall return TRUE and catch any bad provider in lookupProviderInstances() method
             // which will again do an isAssignable test. See DefaultFactory.make() for example.
-            final Class<?> serviceClassSeenByProviderClass = Class.forName(serviceClass.getName(), false, providerClass.getClassLoader());
+            final Class<?> serviceClassSeenByProviderClass = Class.forName(serviceClass.getName(), false,
+                    providerClass.getClassLoader());
             final boolean isCompatible = serviceClassSeenByProviderClass == serviceClass;
             if (!isCompatible) {
-                debug(providerClass + " loaded by " + providerClass.getClassLoader()
-                        + " sees " + serviceClass + " from " + serviceClassSeenByProviderClass.getClassLoader()
-                        + ", where as caller uses " + serviceClass + " loaded by " + serviceClass.getClassLoader());
+                debug(providerClass + " loaded by " + providerClass.getClassLoader() + " sees " + serviceClass
+                        + " from " + serviceClassSeenByProviderClass.getClassLoader() + ", where as caller uses "
+                        + serviceClass + " loaded by " + serviceClass.getClassLoader());
             }
             return isCompatible;
         } catch (ClassNotFoundException e) {
-            debug("Unable to reach " + serviceClass + " from " + providerClass + ", which is loaded by " + providerClass.getClassLoader(), e);
+            debug("Unable to reach " + serviceClass + " from " + providerClass + ", which is loaded by "
+                    + providerClass.getClassLoader(), e);
             return true;
         }
     }
@@ -224,19 +241,20 @@ public final class ServiceLoaderImpl extends org.glassfish.hk2.osgiresourcelocat
     }
 
     private class BundleTracker implements BundleListener {
+
         public void bundleChanged(BundleEvent event) {
             Bundle bundle = event.getBundle();
             switch (event.getType()) {
-                case BundleEvent.INSTALLED:
-                    addProviders(bundle);
-                    break;
-                case BundleEvent.UNINSTALLED:
-                    removeProviders(bundle);
-                    break;
-                case BundleEvent.UPDATED:
-                    removeProviders(bundle);
-                    addProviders(bundle);
-                    break;
+            case BundleEvent.INSTALLED:
+                addProviders(bundle);
+                break;
+            case BundleEvent.UNINSTALLED:
+                removeProviders(bundle);
+                break;
+            case BundleEvent.UPDATED:
+                removeProviders(bundle);
+                addProviders(bundle);
+                break;
             }
         }
     }
@@ -245,22 +263,27 @@ public final class ServiceLoaderImpl extends org.glassfish.hk2.osgiresourcelocat
         rwLock.writeLock().lock();
         try {
             final String SERVICE_LOCATION = "META-INF/services";
-            if (bundle.getEntry(SERVICE_LOCATION) == null) return;
+            if (bundle.getEntry(SERVICE_LOCATION) == null)
+                return;
             Enumeration<String> entries;
             entries = bundle.getEntryPaths(SERVICE_LOCATION);
             if (entries != null) {
                 ProvidersPerBundle providers = new ProvidersPerBundle(bundle.getBundleId());
                 while (entries.hasMoreElements()) {
                     String entry = entries.nextElement();
-                    String serviceName = entry.substring(SERVICE_LOCATION.length() + 1);
-                    InputStream is;
-                    final URL url = bundle.getEntry(entry);
-                    try {
-                        is = url.openStream();
-                        List<String> providerNames = load(is);
-                        debug("Bundle = " + bundle + ", serviceName = " + serviceName + ", providerNames = " + providerNames);
-                        providers.put(serviceName, providerNames);
-                    } catch (IOException e) {
+                    if (!entry.endsWith("/")) {
+                        String serviceName = entry.substring(SERVICE_LOCATION.length() + 1);
+                        InputStream is;
+                        final URL url = bundle.getEntry(entry);
+                        try {
+                            is = url.openStream();
+                            List<String> providerNames = load(is);
+                            debug("Bundle = " + bundle + ", serviceName = " + serviceName + ", providerNames = "
+                                    + providerNames);
+                            providers.put(serviceName, providerNames);
+                        } catch (IOException e) {
+                        }
+
                     }
                 }
                 providersList.addProviders(providers);
@@ -283,6 +306,7 @@ public final class ServiceLoaderImpl extends org.glassfish.hk2.osgiresourcelocat
      * Map of service name to provider names for a particular bundle
      */
     private static class ProvidersPerBundle {
+
         private long bundleId;
         Map<String, List<String>> serviceToProvidersMap = new HashMap<String, List<String>>();
 
@@ -308,6 +332,7 @@ public final class ServiceLoaderImpl extends org.glassfish.hk2.osgiresourcelocat
      * Synchronisation is handled by outer class.
      */
     private static class ProvidersList {
+
         // This list is sorted in ascending order of bundle id
         private List<ProvidersPerBundle> allProviders = new LinkedList<ProvidersPerBundle>();
 
@@ -345,6 +370,7 @@ public final class ServiceLoaderImpl extends org.glassfish.hk2.osgiresourcelocat
     }
 
     private static class DefaultFactory<T> implements ProviderFactory<T> {
+
         public T make(Class providerClass, Class<T> serviceClass) throws Exception {
             if (serviceClass.isAssignableFrom(providerClass)) {
                 return (T) providerClass.newInstance();
